@@ -140,7 +140,7 @@ function coingate_init()
                 $description[] = $item['qty'] . ' × ' . $item['name'];
             }
 
-            $token = get_post_meta($order->id, 'coingate_order_token', true);
+            $token = get_post_meta($order->get_id(), 'coingate_order_token', true);
 
             if (empty($token)) {
                 $token = substr(md5(rand()), 0, 32);
@@ -151,14 +151,14 @@ function coingate_init()
             $wcOrder = wc_get_order($order_id);
 
             $order = \CoinGate\Merchant\Order::create(array(
-                'order_id'          => $order->id,
+                'order_id'          => $order->get_id(),
                 'price_amount'      => number_format($order->get_total(), 8, '.', ''),
                 'price_currency'    => get_woocommerce_currency(),
                 'receive_currency'  => $this->receive_currency,
                 'cancel_url'        => $order->get_cancel_order_url(),
                 'callback_url'      => trailingslashit(get_bloginfo('wpurl')) . '?wc-api=wc_gateway_coingate',
-                'success_url'       => add_query_arg('order', $order->id, add_query_arg('key', $order->order_key, $this->get_return_url($wcOrder))),
-                'title'             => get_bloginfo('name', 'raw') . ' Order #' . $order->id,
+                'success_url'       => add_query_arg('order', $order->get_id(), add_query_arg('key', $order->get_order_key(), $this->get_return_url($wcOrder))),
+                'title'             => get_bloginfo('name', 'raw') . ' Order #' . $order->get_id(),
                 'description'       => implode($description, ', '),
                 'token'             => $token
             ));
@@ -185,11 +185,11 @@ function coingate_init()
 
 
             try {
-                if (!$order || !$order->id) {
+                if (!$order || !$order->get_id()) {
                     throw new Exception('Order #' . $request['order_id'] . ' does not exists');
                 }
 
-                $token = get_post_meta($order->id, 'coingate_order_token', true);
+                $token = get_post_meta($order->get_id(), 'coingate_order_token', true);
 
                 if (empty($token) || strcmp(empty($_GET['token']) ? $request['token'] : $_GET['token'], $token) !== 0) {
                     throw new Exception('Callback token does not match');
@@ -199,7 +199,7 @@ function coingate_init()
                 $cgOrder = \CoinGate\Merchant\Order::find($request['id']);
 
                 if (!$cgOrder) {
-                    throw new Exception('CoinGate Order #' . $order->id . ' does not exists');
+                    throw new Exception('CoinGate Order #' . $order->get_id() . ' does not exists');
                 }
 
                 $orderStatuses = $this->get_option('order_statuses');
@@ -210,17 +210,17 @@ function coingate_init()
 
                 switch ($cgOrder->status) {
                     case 'paid':
-                        $statusWas = "wc-" . $order->status;
+                        $statusWas = "wc-" . $order->get_status();
 
                         $order->update_status($wcOrderStatus);
                         $order->add_order_note(__('Payment is confirmed on the network, and has been credited to the merchant. Purchased goods/services can be securely delivered to the buyer.', 'coingate'));
                         $order->payment_complete();
 
-                        if ($order->status == 'processing' && ($statusWas == $wcExpiredStatus || $statusWas == $wcCanceledStatus)) {
-                            WC()->mailer()->emails['WC_Email_Customer_Processing_Order']->trigger($order->id);
+                        if ($order->get_status() == 'processing' && ($statusWas == $wcExpiredStatus || $statusWas == $wcCanceledStatus)) {
+                            WC()->mailer()->emails['WC_Email_Customer_Processing_Order']->trigger($order->get_id());
                         }
-                        if (($order->status == 'processing' || $order->status == 'completed') && ($statusWas == $wcExpiredStatus || $statusWas == $wcCanceledStatus)) {
-                            WC()->mailer()->emails['WC_Email_New_Order']->trigger($order->id);
+                        if (($order->get_status() == 'processing' || $order->get_status() == 'completed') && ($statusWas == $wcExpiredStatus || $statusWas == $wcCanceledStatus)) {
+                            WC()->mailer()->emails['WC_Email_New_Order']->trigger($order->get_id());
                         }
                         break;
                     case 'invalid':
